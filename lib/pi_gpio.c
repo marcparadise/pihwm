@@ -110,12 +110,12 @@ gpio_valfd (int pin)
 }
 
 /**
-* @brief	Initialize the GPIO interface for the pin numbered pin on the 
+* @brief	Initialize the GPIO interface for the pin numbered pin on the
 * Raspberry Pi P1 header in the direction specified by dir. dir should be
 * either "in" or "out", for which the defined constants INPUT, IN, OUTPUT
 * or OUT may be used.
 *
-* @param	pin		Pin number		
+* @param	pin		Pin number
 * @param	dir		Direction of pin (input or output)
 *
 * @return 	1 for success, -1 for failure
@@ -153,11 +153,11 @@ gpio_init (unsigned int pin, unsigned int dir)
 	if ( dir == 0 )
 	{
 		fwrite("out", sizeof (char), 3, file);
-	} 
+	}
 	else if ( dir == 1 )
 	{
 		fwrite("in", sizeof (char), 2, file);
-	} 
+	}
 	else
 	{
 		debug("[%s] Can't set pin direction.\n", __func__);
@@ -180,8 +180,8 @@ gpio_init (unsigned int pin, unsigned int dir)
 static void *
 isr_handler (void *isr)
 {
-	struct pollfd fdset[2];
-	int nfds = 2, gpio_fd, rc;
+	struct pollfd fdset;
+	int nfds = 1, gpio_fd, rc;
 	char *buf[64];
 
 	isr_t i = *(isr_t *) isr;
@@ -197,15 +197,12 @@ isr_handler (void *isr)
 
 		while ( 1 )
 		{
-			memset((void *) fdset, 0, sizeof (fdset));
+			memset((void *) &fdset, 0, sizeof (fdset));
 
-			fdset[0].fd = STDIN_FILENO;
-			fdset[0].events = POLLIN;
+			fdset.fd = gpio_fd;
+			fdset.events = POLLPRI;
 
-			fdset[1].fd = gpio_fd;
-			fdset[1].events = POLLPRI;
-
-			rc = poll(fdset, nfds, 1000);	/* Timeout in ms */
+			rc = poll(&fdset, nfds, 1000);	/* Timeout in ms */
 
 			if ( rc < 0 )
 			{
@@ -223,10 +220,10 @@ isr_handler (void *isr)
 				}
 			}
 
-			if ( fdset[1].revents & POLLPRI )
+			if ( fdset.revents & POLLPRI )
 			{
 				/* We have an interrupt! */
-				if ( -1 == read(fdset[1].fd, buf, 64) )
+				if ( -1 == read(fdset.fd, buf, 64) )
 				{
 					debug("read failed for interrupt");
 					return (void *) -1;
@@ -234,19 +231,6 @@ isr_handler (void *isr)
 
 				(*i.isr) (i.pin);		/* Call the ISR */
 			}
-
-			if ( fdset[0].revents & POLLIN )
-			{
-				if ( -1 == read(fdset[0].fd, buf, 1) )
-				{
-					debug("read failed for stdin read");
-					return (void *) -1;
-				}
-
-				debug("\npoll() stdin read 0x%2.2X\n", buf[0]);
-			}
-
-			fflush(stdout);
 		}
 	}
 	else
@@ -261,7 +245,7 @@ isr_handler (void *isr)
 * @brief	Set <b>isr</b> as the interrupt service routine (ISR) for pin numbered
 * <b>pin</b> on the Raspberry Pi P1 header. mode should be one of the strings "rising",
 * "falling" or "both" to indicate which edge(s) the ISR is to be triggered on.
-* The function isr is called whenever the edge specified occurs, receiving as 
+* The function isr is called whenever the edge specified occurs, receiving as
 * argument the number of the pin which triggered the interrupt.
 *
 * @param	pin		Pin number to attach interrupt to
@@ -332,7 +316,7 @@ gpio_write (unsigned int pin, unsigned int val)
 			debug("[%s] Can't write to GPIO pin", __func__);
       ret = -1;
 		}
-	} 
+	}
 	else if ( val == 1 )
 	{
 		if ( write(file, "1", (sizeof(char) * 1)) == -1 )
@@ -340,8 +324,8 @@ gpio_write (unsigned int pin, unsigned int val)
 			debug("[%s] Can't write to GPIO pin", __func__);
       ret = -1;
 		}
-	} 
-	else 
+	}
+	else
 	{
 		debug("[%s] Wrong value for the GPIO pin", __func__);
     ret = -1;
